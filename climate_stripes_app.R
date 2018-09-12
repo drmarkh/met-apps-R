@@ -41,9 +41,20 @@ ui <- fluidPage(
       mainPanel(
         tabsetPanel(
           tabPanel("Data" ,plotOutput("countryPlot"),htmlOutput("summary")),
-          tabPanel("Model",plotOutput("modelPlot"),htmlOutput("summaryModel")),
-          tabPanel("Compare Data & Model",plotOutput("histPlot")),
-          tabPanel("Compare Decades",plotOutput("boxPlot"),plotOutput("boxPlotModel"))
+          tabPanel("Model 1",plotOutput("modelPlot"),htmlOutput("summaryModel")),
+          tabPanel("Model 2",plotOutput("modelPlotEL"),htmlOutput("summaryModelEL")),
+          tabPanel("Compare Data & Models",plotOutput("histPlot"),
+                   fluidRow(
+                     splitLayout(cellWidths = c("30%","30%","30%"),
+                                 plotOutput("histPlotModel"),
+                                 plotOutput("histPlotModelEL"),
+                                 plotOutput("histPlotData")
+                                 )
+                   )),
+          tabPanel("Compare Decades",
+                   plotOutput("boxPlotModelEL"),
+                   plotOutput("boxPlotModel"),
+                   plotOutput("boxPlot"))
         )
       )
    )
@@ -95,6 +106,15 @@ server <- function(input, output) {
     dataT
   })
   
+  modelTEL <- reactive ({
+    dataT <- dataTreact()
+    set.seed(input$seed)
+    randoms <- runif(nrow(dataT))
+    modelTemp <- randoms*( max(dataT["data"])-min(dataT["data"]) ) + min(dataT["data"])
+    dataT["data"] <- modelTemp
+    dataT
+  })  
+  
   output$summary <- renderUI({ # and set up all varliables used later ... 
     dataT <- dataTreact()
     txt.1 <- paste(
@@ -115,6 +135,24 @@ server <- function(input, output) {
 
   output$summaryModel <- renderUI({ # and set up all varliables used later ... 
     dataT <- modelT()
+    txt.1 <- paste(
+      "<tr><td>Slope:&nbsp </td>",
+      "<td>",signif(coef(line(dataT))[2]*10,2)," C / Decade","</td></tr>"
+      ,sep="")
+    txt.2 <- paste(
+      "<tr><td>Min:&nbsp </td><td>",signif(min(unlist(dataT["data"])),3),"</td></tr>","",
+      "<tr><td>Mean:&nbsp </td><td>",signif(mean(unlist(dataT["data"])),3),"</td></tr>","",
+      "<tr><td>Max:&nbsp </td><td>",signif(max(unlist(dataT["data"])),3),"</td></tr>","",
+      "<tr><td>SD:&nbsp </td><td>",signif(sd(unlist(dataT["data"])),3),"</td></tr>","",
+      "<tr><td>Q1:&nbsp </td><td>",signif(quantile(unlist(dataT["data"]))[2],3),"</td></tr>","",
+      "<tr><td>Q3:&nbsp </td><td>",signif(quantile(unlist(dataT["data"]))[4],3),"</td></tr>",""
+      ,sep="")
+    
+    HTML(paste("<table>",txt.1,txt.2,"</table>",sep = ''))
+  })
+  
+  output$summaryModelEL <- renderUI({ # and set up all varliables used later ... 
+    dataT <- modelTEL()
     txt.1 <- paste(
       "<tr><td>Slope:&nbsp </td>",
       "<td>",signif(coef(line(dataT))[2]*10,2)," C / Decade","</td></tr>"
@@ -155,15 +193,54 @@ server <- function(input, output) {
     if (input$lineTF) abline(line(dataT),col="white")
   })
   
+  output$modelPlotEL <- renderPlot({
+    dataT <- modelTEL()
+    plot(NULL, 
+         xlim=c(minY(),maxY()), 
+         ylim=c(minT(),maxT()), ylab="Temperatue (C)", xlab="Year",
+         main="Modelled Temperature (C)")
+    apply(dataT,1,rectPlot)
+    if (input$pointsTF) points(dataT,pch=21,bg="white")
+    if (input$lineTF) abline(line(dataT),col="white")
+  })  
+  
   output$histPlot <- renderPlot({
     low <- floor(min(dataTreact()["data"],modelT()["data"]))
     high <- ceiling(max(dataTreact()["data"],modelT()["data"]))
     edges <- seq(low-0.5, high+0.5, by=input$binSize)
     binMax=ceiling(nrow(modelT())*4/length(edges)/10)*10 # 1/3 of sample but next higest 10
     hist(unlist(modelT()["data"]),breaks=edges,col=rgb(0,0,1,0.5),ylim=c(0,binMax),
-         xlab="model (blue) and data (green)",main="Frequency of Temperature")
+         xlab="model 1 (blue) model 2 (red) and data (green)",main="Frequency of Temp")
     hist(unlist(dataTreact()["data"]),breaks=edges,col=rgb(0,1,0,0.5),add=T)
+    hist(unlist(modelTEL()["data"]),breaks=edges,col=rgb(1,0,0,0.5),add=T)
   })
+  
+  output$histPlotData <- renderPlot({
+    low <- floor(min(dataTreact()["data"],modelT()["data"]))
+    high <- ceiling(max(dataTreact()["data"],modelT()["data"]))
+    edges <- seq(low-0.5, high+0.5, by=input$binSize)
+    binMax=ceiling(nrow(modelT())*4/length(edges)/10)*10 # 1/3 of sample but next higest 10
+    hist(unlist(dataTreact()["data"]),breaks=edges,col=rgb(0,1,0,0.5),ylim=c(0,binMax),
+         xlab="data (green)",main="Frequency of Temp")
+  })
+  output$histPlotModel <- renderPlot({
+    low <- floor(min(dataTreact()["data"],modelT()["data"]))
+    high <- ceiling(max(dataTreact()["data"],modelT()["data"]))
+    edges <- seq(low-0.5, high+0.5, by=input$binSize)
+    binMax=ceiling(nrow(modelT())*4/length(edges)/10)*10 # 1/3 of sample but next higest 10
+    hist(unlist(modelT()["data"]),breaks=edges,col=rgb(0,0,1,0.5),ylim=c(0,binMax),
+         xlab="model 1 (blue)",main="Frequency of Temp")
+  })
+  output$histPlotModelEL <- renderPlot({
+    low <- floor(min(dataTreact()["data"],modelT()["data"]))
+    high <- ceiling(max(dataTreact()["data"],modelT()["data"]))
+    edges <- seq(low-0.5, high+0.5, by=input$binSize)
+    binMax=ceiling(nrow(modelTEL())*4/length(edges)/10)*10 # 1/3 of sample but next higest 10
+    hist(unlist(modelTEL()["data"]),breaks=edges,col=rgb(1,0,0,0.5),ylim=c(0,binMax),
+         xlab="model 2 (red)",main="Frequency of Temp")
+  })
+  
+  
   
   output$boxPlot <- renderPlot({
     dataT <- dataTreact()
@@ -177,11 +254,22 @@ server <- function(input, output) {
     dataT <- modelT()
     dataT["decade"] <- floor(dataT["year"]/10)*10
     boxplot(data~decade,dataT,
-            main="Model Decadal variability",
+            main="Model 1 Decadal variability",
+            xlab="Temperature (C)",ylab="decade"
+    )
+  })
+  
+  output$boxPlotModelEL <- renderPlot({
+    dataT <- modelTEL()
+    dataT["decade"] <- floor(dataT["year"]/10)*10
+    boxplot(data~decade,dataT,
+            main="Model 2 Decadal variability",
             xlab="Temperature (C)",ylab="decade"
     )
   })
 }
 # Run the application 
 shinyApp(ui = ui, server = server)
+
+
 
