@@ -78,7 +78,7 @@ server <- function(input, output) {
   maxT <- reactive( max(dataTreact()$data) )
   minY <- reactive( min(dataTreact()$year) )
   maxY <- reactive( max(dataTreact()$year) )
-  rangeT <- reactive( maxT()-minT() )
+  rangeT <- reactive( maxT()-minT() +0.01 )
   
   # set up colour scale 
   nColBins <- reactive( input$cols ) 
